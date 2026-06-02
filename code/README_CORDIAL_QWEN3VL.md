@@ -83,6 +83,8 @@ python code/cordial_qwen3vl.py \
 
 ## 分别训练三个数据集
 
+单卡训练示例：
+
 ```bash
 python code/cordial_qwen3vl.py \
   --mode train \
@@ -95,6 +97,33 @@ python code/cordial_qwen3vl.py \
   --epochs 3 \
   --train-batch-size 1 \
   --gradient-accumulation-steps 16
+```
+
+多卡训练建议用 `torchrun`。脚本会自动读取 `LOCAL_RANK`，让每个进程只绑定自己的 GPU：
+
+```bash
+torchrun --standalone --nproc_per_node 2 code/cordial_qwen3vl.py \
+  --mode train \
+  --dataset all \
+  --dataset-root ./dataset/CORDIAL \
+  --model-name Qwen/Qwen3-VL-8B-Instruct \
+  --output-dir ./checkpoints/cordial_qwen3vl \
+  --load-in-4bit \
+  --bf16 \
+  --epochs 3 \
+  --train-batch-size 1 \
+  --gradient-accumulation-steps 16
+```
+
+如果 `torchrun` 只显示 `ChildFailedError`，用下面的方式把每个 rank 的真实 traceback 打出来：
+
+```bash
+torchrun --standalone --nproc_per_node 2 --tee 3 code/cordial_qwen3vl.py \
+  --mode train \
+  --dataset disrel \
+  --dataset-root ./dataset/CORDIAL \
+  --load-in-4bit \
+  --bf16
 ```
 
 这会分别训练：

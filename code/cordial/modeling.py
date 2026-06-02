@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from typing import Any
 
 import torch
@@ -85,11 +86,12 @@ def load_model_and_processor(args: argparse.Namespace, for_training: bool):
             bnb_4bit_compute_dtype=torch.bfloat16,
             bnb_4bit_use_double_quant=True,
         )
+    device_map = resolve_device_map(args.device_map)
 
     model = Qwen3VLForConditionalGeneration.from_pretrained(
         args.model_name,
         torch_dtype=torch.bfloat16 if args.bf16 else torch.float16,
-        device_map=args.device_map,
+        device_map=device_map,
         quantization_config=quantization_config,
         trust_remote_code=True,
         attn_implementation=args.attn_implementation,
@@ -114,3 +116,18 @@ def load_model_and_processor(args: argparse.Namespace, for_training: bool):
 
     return model, processor
 
+
+def resolve_device_map(device_map_arg: str):
+    """根据启动方式决定 device_map。
+
+    单进程时保留 `auto`；torchrun 多进程时，每个 rank 只把完整模型放到
+    自己绑定的 GPU，避免 `device_map=auto` 和 DDP/QLoRA 互相打架。
+    """
+    local_rank = os.environ.get("LOCAL_RANK")
+    if local_rank is not None and torch.cuda.is_available():
+        rank = int(local_rank)
+        torch.cuda.set_device(rank)
+        return {"": rank}
+    if device_map_arg.lower() in {"none", "null"}:
+        return None
+    return device_map_arg
