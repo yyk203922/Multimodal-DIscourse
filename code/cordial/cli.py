@@ -26,7 +26,7 @@ def parse_args() -> argparse.Namespace:
 
     # 服务器训练常用参数。
     parser.add_argument("--device-map", default="auto")
-    parser.add_argument("--attn-implementation", default="flash_attention_2")
+    parser.add_argument("--attn-implementation", default="sdpa")
     parser.add_argument("--load-in-4bit", action="store_true")
     parser.add_argument("--bf16", action="store_true", default=True)
     parser.add_argument("--epochs", type=float, default=3)
@@ -65,4 +65,3 @@ def main() -> None:
             train_one_task(args, task)
         else:
             evaluate_and_save(args, task)
-

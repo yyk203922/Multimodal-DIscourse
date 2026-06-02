@@ -1,9 +1,48 @@
-accelerate>=0.34.0
-bitsandbytes>=0.43.3
-datasets>=2.20.0
-peft>=0.12.0
-pillow>=10.4.0
-qwen-vl-utils>=0.0.8
-scikit-learn>=1.5.0
+# CORDIAL + Qwen3-VL-8B 训练环境
+# 建议先按服务器 CUDA 版本安装对应 PyTorch，再安装本文件：
+#   pip install -r code/requirements.txt
+
+# PyTorch / 分布式训练
 torch>=2.4.0
+torchvision>=0.19.0
+accelerate>=1.0.0
+
+# Qwen3-VL / Hugging Face
 transformers>=4.57.0
+tokenizers>=0.20.0
+sentencepiece>=0.2.0
+safetensors>=0.4.5
+huggingface-hub>=0.26.0
+qwen-vl-utils>=0.0.10
+
+# LoRA / QLoRA
+peft>=0.13.0
+bitsandbytes>=0.44.0
+
+# 数据读取与处理
+datasets>=2.21.0
+pyarrow>=17.0.0
+pandas>=2.2.0
+numpy>=1.26.0
+tqdm>=4.66.0
+
+# 图像和视频输入处理
+pillow>=10.4.0
+opencv-python-headless>=4.10.0.84
+av>=12.3.0
+
+# 指标与实验记录
+scikit-learn>=1.5.0
+tensorboard>=2.17.0
+wandb>=0.17.0
+
+# 常用工具
+packaging>=24.0
+einops>=0.8.0
+protobuf>=5.27.0
+psutil>=6.0.0
+
+# 可选：如果服务器 CUDA / PyTorch 已匹配好，可以单独安装 FlashAttention2：
+#   pip install flash-attn --no-build-isolation
+# 然后运行时加：
+#   --attn-implementation flash_attention_2
