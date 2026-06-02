@@ -1,7 +1,7 @@
 """CORDIAL 本地数据读取与字段归一化。
 
 这个模块尽量兼容 Hugging Face 仓库下载后的不同落盘方式：
-只要每个数据集下面能找到 JSON/JSONL，并且行里有文本、图片、标签字段，
+只要每个数据集下面能找到 JSON/JSONL/Parquet，并且行里有文本、图片、标签字段，
 就会统一转换成训练脚本需要的 text / image_path / labels。
 """
 
@@ -12,24 +12,55 @@ import re
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from datasets import DatasetDict, load_dataset
+from datasets import DatasetDict, load_dataset, load_from_disk
 
 from .config import IMAGE_KEYS, LABEL_KEYS, SPLIT_ALIASES, TASKS, TEXT_KEYS
 
 
+DATA_EXTENSIONS = {".json", ".jsonl", ".parquet", ".arrow"}
+
+
+def has_data_files(path: Path) -> bool:
+    """判断目录下是否存在常见数据文件。"""
+    return path.exists() and any(p.suffix.lower() in DATA_EXTENSIONS for p in path.rglob("*"))
+
+
+def case_insensitive_child(parent: Path, name: str) -> Optional[Path]:
+    """大小写不敏感地寻找子目录，例如本仓库里 CLUE 目录实际叫 Clue。"""
+    if not parent.exists():
+        return None
+    lowered = name.lower()
+    for child in parent.iterdir():
+        if child.is_dir() and child.name.lower() == lowered:
+            return child
+    return None
+
+
 def discover_task_dir(dataset_root: Path, task: str) -> Path:
     """寻找某个子任务所在目录。"""
-    candidates = [dataset_root / alias for alias in TASKS[task]["aliases"]]
-    candidates += [dataset_root / task, dataset_root]
+    candidates = []
+    for alias in TASKS[task]["aliases"] + [task]:
+        candidates.append(dataset_root / alias)
+        matched = case_insensitive_child(dataset_root, alias)
+        if matched is not None:
+            candidates.append(matched)
+    candidates.append(dataset_root)
+
     for candidate in candidates:
-        if candidate.exists() and any(candidate.rglob("*.json*")):
+        if has_data_files(candidate):
             return candidate
     return dataset_root
 
 
-def discover_split_files(task_dir: Path) -> dict[str, str]:
+def discover_split_files(task_dir: Path, task: str, label_mode: str) -> dict[str, str]:
     """把 train/dev/test 文件名映射成 datasets 能识别的 split。"""
-    files = [p for p in task_dir.rglob("*") if p.suffix.lower() in {".json", ".jsonl"}]
+    files = [p for p in task_dir.rglob("*") if p.suffix.lower() in DATA_EXTENSIONS]
+    if task == "clue":
+        suffix = "_ml" if label_mode == "multi" else "_sl"
+        preferred = [p for p in files if p.stem.lower().endswith(suffix)]
+        if preferred:
+            files = preferred
+
     split_files: dict[str, str] = {}
     for split, aliases in SPLIT_ALIASES.items():
         for path in files:
@@ -42,18 +73,33 @@ def discover_split_files(task_dir: Path) -> dict[str, str]:
     return split_files
 
 
-def load_task_dataset(dataset_root: str, task: str) -> DatasetDict:
+def load_task_dataset(dataset_root: str, task: str, label_mode: str = "multi") -> DatasetDict:
     """读取单个任务，并统一字段格式。"""
     root = Path(dataset_root).expanduser().resolve()
+    if not root.exists():
+        raise FileNotFoundError(f"Dataset root does not exist: {root}")
+
     task_dir = discover_task_dir(root, task)
-    split_files = discover_split_files(task_dir)
+    split_files = discover_split_files(task_dir, task, label_mode)
     if not split_files:
+        top_items = ", ".join(sorted(p.name for p in root.iterdir())) if root.exists() else "<missing>"
+        task_items = ", ".join(sorted(p.name for p in task_dir.iterdir())) if task_dir.exists() else "<missing>"
         raise FileNotFoundError(
-            f"No JSON/JSONL files found for task `{task}` under {task_dir}. "
-            "Point --dataset-root at the downloaded aashananth/CORDIAL folder."
+            f"No JSON/JSONL/Parquet/Arrow files found for task `{task}` under {task_dir}.\n"
+            f"Dataset root items: {top_items}\n"
+            f"Task dir items: {task_items}\n"
+            "Please point --dataset-root at the downloaded aashananth/CORDIAL folder."
         )
 
-    loaded = load_dataset("json", data_files=split_files)
+    first_file = next(iter(split_files.values()))
+    suffix = Path(first_file).suffix.lower()
+    if suffix in {".json", ".jsonl"}:
+        loaded = load_dataset("json", data_files=split_files)
+    elif suffix == ".parquet":
+        loaded = load_dataset("parquet", data_files=split_files)
+    else:
+        loaded = load_from_disk(str(task_dir))
+
     normalized = DatasetDict()
     for split_name, split in loaded.items():
         normalized[split_name] = split.map(
@@ -167,4 +213,3 @@ def match_label(value: str, choices: list[str]) -> Optional[str]:
         if lowered == choice.lower() or choice.lower() in lowered:
             return choice
     return None
-

@@ -19,11 +19,10 @@ from .prompts import answer_from_labels, build_messages
 @torch.inference_mode()
 def generate_predictions(args: argparse.Namespace, task: str, split: str) -> list[dict[str, Any]]:
     """对指定 split 逐样本生成预测。"""
-    ds = load_task_dataset(args.dataset_root, task)
+    label_mode = args.label_mode if task == "clue" else "single"
+    ds = load_task_dataset(args.dataset_root, task, label_mode=label_mode)
     if split not in ds:
         raise ValueError(f"Split `{split}` not found. Available splits: {list(ds.keys())}")
-
-    label_mode = args.label_mode if task == "clue" else "single"
     model, processor = load_model_and_processor(args, for_training=False)
     model.eval()
 
@@ -83,11 +82,11 @@ def evaluate_and_save(args: argparse.Namespace, task: str) -> None:
 
 def inspect_dataset(args: argparse.Namespace, task: str) -> None:
     """打印每个 split 的前两个样本，方便确认字段解析是否正确。"""
-    ds = load_task_dataset(args.dataset_root, task)
+    label_mode = args.label_mode if task == "clue" else "single"
+    ds = load_task_dataset(args.dataset_root, task, label_mode=label_mode)
     print(ds)
     for split in ds:
         print(f"\n[{task}:{split}]")
         for row in ds[split].select(range(min(2, len(ds[split])))):
             sample = {key: row[key] for key in ["text", "image_path", "labels"]}
             print(json.dumps(sample, ensure_ascii=False, indent=2))
-

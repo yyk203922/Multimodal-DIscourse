@@ -6,7 +6,7 @@
 - `tweet_subtitles`: `Insertion`, `Concretization`, `Projection`, `Restatement`, `Extension`
 - `clue`: `Visible`, `Action`, `Meta`, `Subjective`, `Story`
 
-默认认为你已经把 Hugging Face 数据集 `aashananth/CORDIAL` 下载到本地，路径为 `./dataset/CORDIAL`。
+默认认为你已经把 Hugging Face 数据集 `aashananth/CORDIAL` 下载到本地，路径为 `./dataset/CORDIAL`。如果服务器上的路径不同，所有命令都用 `--dataset-root` 指向真实目录即可。
 
 ## 代码结构
 
@@ -34,6 +34,12 @@ pip install -r code/requirements.txt
 
 服务器上建议使用支持 Qwen3-VL 的新版 `transformers`。脚本默认模型名是 `Qwen/Qwen3-VL-8B-Instruct`。
 
+如果服务器没有安装 `flash-attn`，把命令里的 attention 实现改成 PyTorch SDPA：
+
+```bash
+--attn-implementation sdpa
+```
+
 ## 先检查数据是否能读
 
 ```bash
@@ -44,6 +50,36 @@ python code/cordial_qwen3vl.py \
 ```
 
 如果你的数据集落盘路径不同，把 `--dataset-root` 改成真实路径即可。脚本会在每个任务目录下寻找 `train/dev/validation/test` 这类 JSON 或 JSONL 文件，并把文本、图片路径、标签统一成 `text / image_path / labels`。
+
+CORDIAL 仓库常见目录结构如下，脚本已经兼容 `Clue` 这种首字母大写目录名：
+
+```text
+dataset/CORDIAL/
+  Clue/
+    images/
+    train_ml.json
+    train_sl.json
+    test_ml.json
+    test_sl.json
+  disrel/
+    images/
+    train.json
+    test.json
+  tweet_subtitles/
+    images/
+    train.json
+    test.json
+```
+
+检查 CLUE single-label 文件时可以这样跑：
+
+```bash
+python code/cordial_qwen3vl.py \
+  --mode inspect \
+  --dataset clue \
+  --label-mode single \
+  --dataset-root ./dataset/CORDIAL
+```
 
 ## 分别训练三个数据集
 
@@ -67,6 +103,8 @@ python code/cordial_qwen3vl.py \
 - `./checkpoints/cordial_qwen3vl/tweet_subtitles_single/final`
 - `./checkpoints/cordial_qwen3vl/clue_multi/final`
 
+每个目录里保存的是 LoRA adapter，不是合并后的完整 Qwen3-VL 权重。测试时需要用 `--adapter-path` 指向对应任务的 `final` 目录。
+
 CLUE 默认是多标签。如果你想跑论文里的 single-label 版本：
 
 ```bash
@@ -79,7 +117,7 @@ python code/cordial_qwen3vl.py \
 
 ## 推理和测试
 
-训练后用对应 adapter 跑测试集：
+训练后用对应 adapter 跑测试集。下面是 DisRel 的例子：
 
 ```bash
 python code/cordial_qwen3vl.py \
@@ -92,6 +130,33 @@ python code/cordial_qwen3vl.py \
 ```
 
 `tweet_subtitles` 和 `clue` 同理，只需要换 `--dataset` 和 `--adapter-path`。单标签任务会输出 Accuracy、Macro-F1 和分类报告；CLUE 多标签会输出 Micro-F1 和 Macro-F1。
+
+Tweet Subtitles 测试示例：
+
+```bash
+python code/cordial_qwen3vl.py \
+  --mode eval \
+  --dataset tweet_subtitles \
+  --split test \
+  --dataset-root ./dataset/CORDIAL \
+  --adapter-path ./checkpoints/cordial_qwen3vl/tweet_subtitles_single/final \
+  --prediction-file ./checkpoints/cordial_qwen3vl/tweet_subtitles_test.jsonl
+```
+
+CLUE 多标签测试示例：
+
+```bash
+python code/cordial_qwen3vl.py \
+  --mode eval \
+  --dataset clue \
+  --label-mode multi \
+  --split test \
+  --dataset-root ./dataset/CORDIAL \
+  --adapter-path ./checkpoints/cordial_qwen3vl/clue_multi/final \
+  --prediction-file ./checkpoints/cordial_qwen3vl/clue_test.jsonl
+```
+
+`--mode eval` 和 `--mode predict` 在当前代码里都会执行推理、保存 JSONL，并打印指标；保留两个名字是为了之后如果要区分“只预测”和“带指标评估”，可以直接扩展。
 
 ## 重要说明
 

@@ -13,8 +13,8 @@ from .modeling import QwenVlCollator, load_model_and_processor
 
 def train_one_task(args: argparse.Namespace, task: str) -> None:
     """训练单个数据集。"""
-    ds = load_task_dataset(args.dataset_root, task)
     label_mode = args.label_mode if task == "clue" else "single"
+    ds = load_task_dataset(args.dataset_root, task, label_mode=label_mode)
     output_dir = Path(args.output_dir) / f"{task}_{label_mode}"
 
     train_ds = ds["train"]
@@ -54,4 +54,3 @@ def train_one_task(args: argparse.Namespace, task: str) -> None:
     trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
     trainer.save_model(str(output_dir / "final"))
     processor.save_pretrained(str(output_dir / "final"))
-
