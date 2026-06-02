@@ -119,14 +119,23 @@ def first_present(row: dict[str, Any], keys: Iterable[str]) -> Any:
 
 def normalize_row(row: dict[str, Any], task: str, task_dir: Path) -> dict[str, Any]:
     """把原始样本转换成模型训练/推理共用格式。"""
+    row = dict(row)
     image_value = first_present(row, IMAGE_KEYS)
     labels = normalize_labels(row, task)
     return {
         "text": normalize_text(row),
         "image_path": resolve_image_path(image_value, task_dir),
         "labels": labels,
-        "raw_json": json.dumps(row, ensure_ascii=False),
+        "raw_json": safe_json_dumps(row),
     }
+
+
+def safe_json_dumps(value: Any) -> str:
+    """保存原始样本摘要；遇到 LazyRow、图片对象等不可序列化值时转字符串。"""
+    try:
+        return json.dumps(value, ensure_ascii=False, default=str)
+    except TypeError:
+        return json.dumps(str(value), ensure_ascii=False)
 
 
 def normalize_text(row: dict[str, Any]) -> str:
