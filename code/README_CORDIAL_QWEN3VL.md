@@ -99,6 +99,33 @@ python code/cordial_qwen3vl.py \
   --gradient-accumulation-steps 16
 ```
 
+如果想用 SwanLab 监控训练，先确认环境里已经安装 `swanlab`，并在服务器上登录：
+
+```bash
+swanlab login
+```
+
+然后训练时加 `--report-to swanlab`。`--swanlab-project` 和 `--swanlab-workspace`
+会分别写入 `SWANLAB_PROJECT` 和 `SWANLAB_WORKSPACE`，`--run-name` 会传给
+Hugging Face Trainer。跑 `--dataset all` 时，每个子任务会自动追加任务名，避免覆盖：
+
+```bash
+python code/cordial_qwen3vl.py \
+  --mode train \
+  --dataset all \
+  --dataset-root ./dataset/CORDIAL \
+  --model-name /data/ykyang/models/Qwen3-VL-8B-Instruct \
+  --output-dir ./checkpoints/cordial_qwen3vl \
+  --load-in-4bit \
+  --bf16 \
+  --epochs 3 \
+  --train-batch-size 1 \
+  --gradient-accumulation-steps 16 \
+  --report-to swanlab \
+  --swanlab-project cordial-qwen3vl \
+  --run-name qwen3vl-lora
+```
+
 多卡训练建议用 `torchrun`。脚本会自动读取 `LOCAL_RANK`，让每个进程只绑定自己的 GPU：
 
 ```bash

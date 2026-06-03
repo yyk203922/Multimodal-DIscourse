@@ -35,6 +35,7 @@ av>=12.3.0
 scikit-learn>=1.5.0
 tensorboard>=2.17.0
 wandb>=0.17.0
+swanlab>=0.5.0
 
 # 常用工具
 packaging>=24.0

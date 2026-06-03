@@ -42,6 +42,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-new-tokens", type=int, default=32)
     parser.add_argument("--resume-from-checkpoint", default=None)
     parser.add_argument("--report-to", default="none")
+    parser.add_argument("--run-name", default=None, help="Experiment run name for trackers.")
+    parser.add_argument("--swanlab-project", default=None, help="SwanLab project name.")
+    parser.add_argument("--swanlab-workspace", default=None, help="SwanLab workspace name.")
+    parser.add_argument(
+        "--swanlab-mode",
+        default=None,
+        help="Optional SwanLab mode, for example cloud, local, offline, or disabled.",
+    )
 
     # LoRA 参数。
     parser.add_argument("--lora-r", type=int, default=16)
