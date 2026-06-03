@@ -34,10 +34,10 @@ pip install -r code/requirements.txt
 
 服务器上建议使用支持 Qwen3-VL 的新版 `transformers`。脚本默认模型名是 `Qwen/Qwen3-VL-8B-Instruct`。
 
-脚本默认使用 PyTorch SDPA attention，不需要额外安装 `flash-attn`。如果你的服务器已经装好 FlashAttention2，可以手动打开加速：
+如果服务器没有安装 `flash-attn`，把命令里的 attention 实现改成 PyTorch SDPA：
 
 ```bash
---attn-implementation flash_attention_2
+--attn-implementation sdpa
 ```
 
 ## 先检查数据是否能读
@@ -90,7 +90,7 @@ python code/cordial_qwen3vl.py \
   --mode train \
   --dataset all \
   --dataset-root ./dataset/CORDIAL \
-  --model-name Qwen/Qwen3-VL-8B-Instruct \
+  --model-name /data/ykyang/models/Qwen3-VL-8B-Instruct \
   --output-dir ./checkpoints/cordial_qwen3vl \
   --load-in-4bit \
   --bf16 \
