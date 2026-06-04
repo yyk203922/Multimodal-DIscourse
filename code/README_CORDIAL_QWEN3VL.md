@@ -19,7 +19,7 @@ code/
     config.py             # 三个数据集的标签、别名、字段候选名
     data.py               # 本地 JSON/JSONL 数据读取和字段归一化
     prompts.py            # Qwen3-VL 对话 prompt 和标准答案格式
-    modeling.py           # Qwen3-VL 加载、4bit、LoRA、训练 collator
+    modeling.py           # Qwen3-VL 加载、4bit/8bit/不量化、LoRA、训练 collator
     train.py              # 单任务训练逻辑
     infer.py              # 推理、保存预测、数据 inspect
     metrics.py            # 输出解析和 Accuracy/F1 指标
@@ -83,6 +83,16 @@ python code/cordial_qwen3vl.py \
 
 ## 分别训练三个数据集
 
+### 量化选择
+
+训练和测试都支持三种加载方式：
+
+- `--load-in-4bit`：QLoRA，最省显存，单张 3090 24GB 推荐优先用这个。
+- `--load-in-8bit`：8bit LoRA，显存高于 4bit，可能略稳，但不保证指标一定更高。
+- 不传 `--load-in-4bit` 或 `--load-in-8bit`：不量化 LoRA，显存最高，单张 3090 很可能 OOM；双卡 3090 可以尝试。
+
+`--load-in-4bit` 和 `--load-in-8bit` 是互斥参数，不能同时传。评估 checkpoint 时要使用和训练时相同的量化方式，例如 4bit 训练出来的 LoRA，测试时也加 `--load-in-4bit`。
+
 单卡训练示例：
 
 ```bash
@@ -142,6 +152,37 @@ torchrun --standalone --nproc_per_node 2 code/cordial_qwen3vl.py \
   --gradient-accumulation-steps 16
 ```
 
+双卡 3090 可尝试 8bit：
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node 2 code/cordial_qwen3vl.py \
+  --mode train \
+  --dataset all \
+  --dataset-root ./dataset/CORDIAL \
+  --model-name /data/ykyang/models/Qwen3-VL-8B-Instruct \
+  --output-dir ./checkpoints/cordial_qwen3vl_8bit \
+  --load-in-8bit \
+  --bf16 \
+  --epochs 3 \
+  --train-batch-size 1 \
+  --gradient-accumulation-steps 16
+```
+
+如果想尝试不量化训练，去掉 `--load-in-4bit / --load-in-8bit`。不量化显存压力最大，建议先用单任务和较小 batch 做冒烟测试：
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node 2 code/cordial_qwen3vl.py \
+  --mode train \
+  --dataset disrel \
+  --dataset-root ./dataset/CORDIAL \
+  --model-name /data/ykyang/models/Qwen3-VL-8B-Instruct \
+  --output-dir ./checkpoints/cordial_qwen3vl_full \
+  --bf16 \
+  --epochs 1 \
+  --train-batch-size 1 \
+  --gradient-accumulation-steps 16
+```
+
 如果 `torchrun` 只显示 `ChildFailedError`，用下面的方式把每个 rank 的真实 traceback 打出来：
 
 ```bash
@@ -182,10 +223,11 @@ python code/cordial_qwen3vl.py \
   --split test \
   --dataset-root ./dataset/CORDIAL \
   --adapter-path ./checkpoints/cordial_qwen3vl/disrel_single/final \
+  --load-in-4bit \
   --prediction-file ./checkpoints/cordial_qwen3vl/disrel_test.jsonl
 ```
 
-`tweet_subtitles` 和 `clue` 同理，只需要换 `--dataset` 和 `--adapter-path`。单标签任务会输出 Accuracy、Macro-F1 和分类报告；CLUE 多标签会输出 Micro-F1 和 Macro-F1。
+`tweet_subtitles` 和 `clue` 同理，只需要换 `--dataset` 和 `--adapter-path`。如果 checkpoint 是 8bit 训练的，测试时改成 `--load-in-8bit`；如果是不量化训练的，测试时不要传量化参数。单标签任务会输出 Accuracy、Macro-F1 和分类报告；CLUE 多标签会输出 Micro-F1 和 Macro-F1。
 
 Tweet Subtitles 测试示例：
 
@@ -196,6 +238,7 @@ python code/cordial_qwen3vl.py \
   --split test \
   --dataset-root ./dataset/CORDIAL \
   --adapter-path ./checkpoints/cordial_qwen3vl/tweet_subtitles_single/final \
+  --load-in-4bit \
   --prediction-file ./checkpoints/cordial_qwen3vl/tweet_subtitles_test.jsonl
 ```
 
@@ -209,6 +252,7 @@ python code/cordial_qwen3vl.py \
   --split test \
   --dataset-root ./dataset/CORDIAL \
   --adapter-path ./checkpoints/cordial_qwen3vl/clue_multi/final \
+  --load-in-4bit \
   --prediction-file ./checkpoints/cordial_qwen3vl/clue_test.jsonl
 ```
 

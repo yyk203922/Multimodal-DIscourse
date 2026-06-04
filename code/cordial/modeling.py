@@ -78,14 +78,7 @@ def load_model_and_processor(args: argparse.Namespace, for_training: bool):
     if getattr(processor, "tokenizer", None) is not None:
         processor.tokenizer.padding_side = "right"
 
-    quantization_config = None
-    if args.load_in_4bit:
-        quantization_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_use_double_quant=True,
-        )
+    quantization_config = build_quantization_config(args)
     device_map = resolve_device_map(args.device_map)
 
     model = Qwen3VLForConditionalGeneration.from_pretrained(
@@ -99,7 +92,7 @@ def load_model_and_processor(args: argparse.Namespace, for_training: bool):
 
     if for_training:
         model.config.use_cache = False
-        if args.load_in_4bit:
+        if uses_kbit_quantization(args):
             model = prepare_model_for_kbit_training(model)
         lora_config = LoraConfig(
             r=args.lora_r,
@@ -115,6 +108,25 @@ def load_model_and_processor(args: argparse.Namespace, for_training: bool):
         model = PeftModel.from_pretrained(model, args.adapter_path)
 
     return model, processor
+
+
+def uses_kbit_quantization(args: argparse.Namespace) -> bool:
+    """Return whether the model is loaded through bitsandbytes quantization."""
+    return bool(args.load_in_4bit or getattr(args, "load_in_8bit", False))
+
+
+def build_quantization_config(args: argparse.Namespace) -> BitsAndBytesConfig | None:
+    """Build a bitsandbytes quantization config for 4bit or 8bit loading."""
+    if args.load_in_4bit:
+        return BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+        )
+    if getattr(args, "load_in_8bit", False):
+        return BitsAndBytesConfig(load_in_8bit=True)
+    return None
 
 
 def resolve_device_map(device_map_arg: str):

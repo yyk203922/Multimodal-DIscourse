@@ -27,7 +27,9 @@ def parse_args() -> argparse.Namespace:
     # 服务器训练常用参数。
     parser.add_argument("--device-map", default="auto")
     parser.add_argument("--attn-implementation", default="sdpa")
-    parser.add_argument("--load-in-4bit", action="store_true")
+    quantization_group = parser.add_mutually_exclusive_group()
+    quantization_group.add_argument("--load-in-4bit", action="store_true")
+    quantization_group.add_argument("--load-in-8bit", action="store_true")
     parser.add_argument("--bf16", action="store_true", default=True)
     parser.add_argument("--epochs", type=float, default=3)
     parser.add_argument("--train-batch-size", type=int, default=1)
