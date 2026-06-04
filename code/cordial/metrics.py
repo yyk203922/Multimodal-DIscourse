@@ -11,6 +11,9 @@ from sklearn.preprocessing import MultiLabelBinarizer
 from .config import TASKS
 
 
+METRIC_DIGITS = 4
+
+
 def parse_prediction(text: str, task: str, label_mode: str) -> list[str]:
     """从模型自由文本输出中抽取标准标签。"""
     choices = TASKS[task]["labels"]
@@ -30,15 +33,28 @@ def evaluate_predictions(rows: list[dict[str, Any]], task: str, label_mode: str)
         y_true = mlb.fit_transform(gold)
         y_pred = mlb.transform(pred)
         return {
-            "micro_f1": f1_score(y_true, y_pred, average="micro", zero_division=0),
-            "macro_f1": f1_score(y_true, y_pred, average="macro", zero_division=0),
+            "micro_f1": round(
+                f1_score(y_true, y_pred, average="micro", zero_division=0),
+                METRIC_DIGITS,
+            ),
+            "macro_f1": round(
+                f1_score(y_true, y_pred, average="macro", zero_division=0),
+                METRIC_DIGITS,
+            ),
         }
 
     gold_single = [items[0] if items else "" for items in gold]
     pred_single = [items[0] if items else "" for items in pred]
     return {
-        "accuracy": accuracy_score(gold_single, pred_single),
-        "macro_f1": f1_score(gold_single, pred_single, average="macro", zero_division=0),
-        "report": classification_report(gold_single, pred_single, zero_division=0),
+        "accuracy": round(accuracy_score(gold_single, pred_single), METRIC_DIGITS),
+        "macro_f1": round(
+            f1_score(gold_single, pred_single, average="macro", zero_division=0),
+            METRIC_DIGITS,
+        ),
+        "report": classification_report(
+            gold_single,
+            pred_single,
+            zero_division=0,
+            digits=METRIC_DIGITS,
+        ),
     }
-
